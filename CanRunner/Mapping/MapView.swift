@@ -21,6 +21,8 @@ class MapView: UIViewController, MGLMapViewDelegate, UIImagePickerControllerDele
     var waypoints = [Waypoint]()
     var stops = [NSDictionary]()
     var orgin: CLLocationCoordinate2D!
+    var userID = Auth.auth().currentUser?.uid
+    
     
     
     
@@ -34,6 +36,7 @@ class MapView: UIViewController, MGLMapViewDelegate, UIImagePickerControllerDele
         
         view.addSubview(mapView)
         addButton()
+        getUserInfo()
         //addInfoButton()
         getRoutes()
         
@@ -66,25 +69,10 @@ class MapView: UIViewController, MGLMapViewDelegate, UIImagePickerControllerDele
     @objc func navigationButtonWasPressed(_ sender: UIButton){
         if let origin = mapView.userLocation?.coordinate {
             // Calculate the route from the user's location to the set destination
-            calculateRoute(from: origin, to: self.orgin)
+            calculateRoute(from: origin, to: self.waypoints[0].coordinate)
         } else {
             print("Failed to get user location, make sure to allow location access for this application.")
         }
-    }
-    
-    func addInfoButton(){
-        infoButton = UIButton(frame: CGRect(x: (view.frame.width/2) + 150, y: view.frame.height - 875, width: 50, height: 50))
-        infoButton.backgroundColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1)
-        infoButton.setTitle("Info", for: .normal)
-        infoButton.setTitleColor(.orange, for: .normal)
-        infoButton.layer.cornerRadius = 20
-        infoButton.addTarget(self, action: #selector(showInfo(_:)), for: .touchUpInside)
-        view.addSubview(infoButton)
-    }
-    
-    @objc func showInfo(_ sender: UIButton)
-    {
-        
     }
     
     
@@ -185,14 +173,28 @@ class MapView: UIViewController, MGLMapViewDelegate, UIImagePickerControllerDele
                 //                if(restDict["latitude"] == nil  || restDict["longitude"] == nil){
                 //                    return
                 //                }
+                let completed = restDict["completed"] as! String
+                let routeAssignment = restDict["routeAssignment"] as! String
                 let temp = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+                
                 if(i == 0){
                     self.orgin = temp
                 }
-                let temp2 = Waypoint(coordinate: temp, coordinateAccuracy: -1, name: address)
-                self.waypoints.append(temp2)
-                self.stops.append(restDict as NSDictionary)
+                
+                //print("routeAssignment:  " + routeAssignment + "\n\n")
+                //print("self.userRouteAssignment: " + self.userRoute  + "\n\n")
+                
+                if(completed == "N")
+                {
+                    let temp2 = Waypoint(coordinate: temp, coordinateAccuracy: -1, name: address)
+                    self.waypoints.append(temp2)
+                    self.stops.append(restDict as NSDictionary)
+                    //print(self.stops)
+                }
+                
                 i = i + 1
+                
+                
             }
             //print(self.waypoints)
             //print(self.stops)
@@ -202,4 +204,33 @@ class MapView: UIViewController, MGLMapViewDelegate, UIImagePickerControllerDele
         }
     }
     
+    func getUserInfo()
+    {
+        self.ref.child("Users").child(self.userID!).observeSingleEvent(of: .value, with: { (snapshot) in
+            // Get user value
+            let value = snapshot.value as? NSDictionary
+            let userAssignedRoute = value?["routeAssignment"] as? String ?? ""
+            
+            var i = 0
+            while(i < self.waypoints.count)
+            {
+                if(self.stops[i].value(forKey: "routeAssignment") as! String != userAssignedRoute)
+                {
+                    if(self.waypoints[i].name == (self.stops[i].value(forKey: "address") as! String))
+                    {
+                        self.waypoints.remove(at: i)
+                        
+                        
+                    }
+                }
+                
+                i = i + 1
+            }
+            
+        }) { (error) in
+            print(error.localizedDescription)
+            
+        }
+        
+    }
 }
